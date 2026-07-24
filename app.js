@@ -248,7 +248,7 @@ const UI = {
 
         const player = document.getElementById('videoPlayer');
         const currentOrigin = (window.location.hostname === '' || window.location.hostname === 'localhost') ? 'https://localhost' : window.location.origin;
-        player.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&origin=${currentOrigin}`;
+        player.src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&origin=${currentOrigin}`;
         
         document.getElementById('videoTitle').textContent = snippet.title;
         document.getElementById('videoChannel').textContent = snippet.channelTitle;
