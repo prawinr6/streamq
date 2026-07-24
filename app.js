@@ -69,13 +69,14 @@ const YouTubeAPI = {
     },
 
     async getTrending() {
-        const cacheKey = 'yt_trending_strict';
+        const cacheKey = 'yt_trending_all'; // Updated cache key to reflect unfiltered data
         const cached = CacheManager.get(cacheKey);
         if (cached) return cached;
         try {
             const data = await this.fetchWithKey('/videos?part=snippet,status&chart=mostPopular&maxResults=40');
             if (data && data.items) {
-                const playable = data.items.filter(v => v.status?.embeddable === true && v.status?.publicStatsViewable === true).slice(0, 16);
+                // MODIFIED: Removed strict filters for embeddable and publicStatsViewable statuses
+                const playable = data.items.slice(0, 16);
                 CacheManager.set(cacheKey, playable, CONFIG.CACHE_EXPIRY.TRENDING);
                 return playable;
             }
@@ -85,17 +86,16 @@ const YouTubeAPI = {
 
     async search(query, isLive = false) {
         if (!query) return [];
-        const cacheKey = `yt_search_${query.replace(/\s+/g, '').toLowerCase()}_${isLive}`;
+        const cacheKey = `yt_search_${query.replace(/\s+/g, '').toLowerCase()}_${isLive}_all`;
         const cached = CacheManager.get(cacheKey);
         if (cached) return cached;
         
         try {
             let endpoint = `/search?part=snippet&q=${encodeURIComponent(query)}&type=video&safeSearch=moderate&maxResults=24`;
             
+            // MODIFIED: Removed '&videoEmbeddable=true&videoSyndicated=true' restrictions
             if (isLive) {
-                endpoint += '&eventType=live&videoEmbeddable=true';
-            } else {
-                endpoint += '&videoEmbeddable=true&videoSyndicated=true';
+                endpoint += '&eventType=live';
             }
             
             const data = await this.fetchWithKey(endpoint);
