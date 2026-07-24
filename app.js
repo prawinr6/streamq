@@ -142,6 +142,12 @@ const UI = {
             active.classList.remove('text-gray-400');
             active.classList.add('bg-gray-800', 'text-red-500');
         }
+        
+        // NEW: Automatically close sidebar on mobile after clicking a link
+        const sidebar = document.getElementById('sidebar');
+        if (sidebar && window.innerWidth < 768) {
+            sidebar.classList.add('hidden');
+        }
     },
 
     // View Loaders
