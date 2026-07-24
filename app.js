@@ -4,6 +4,44 @@ const CONFIG = {
     CACHE_EXPIRY: { TRENDING: 1000 * 60 * 60 * 3, SEARCH: 1000 * 60 * 60 * 24 }
 };
 
+// --- FORMATTERS (Views, Likes, Relative Dates) ---
+const Formatters = {
+    views(count) {
+        if (!count) return '0 views';
+        const num = Number(count);
+        if (num >= 1e9) return (num / 1e9).toFixed(1) + 'B views';
+        if (num >= 1e6) return (num / 1e6).toFixed(1) + 'M views';
+        if (num >= 1e3) return (num / 1e3).toFixed(1) + 'K views';
+        return num.toLocaleString() + ' views';
+    },
+    likes(count) {
+        if (!count) return '0';
+        const num = Number(count);
+        if (num >= 1e9) return (num / 1e9).toFixed(1) + 'B';
+        if (num >= 1e6) return (num / 1e6).toFixed(1) + 'M';
+        if (num >= 1e3) return (num / 1e3).toFixed(1) + 'K';
+        return num.toLocaleString();
+    },
+    date(isoString) {
+        if (!isoString) return '';
+        const date = new Date(isoString);
+        const now = new Date();
+        const seconds = Math.floor((now - date) / 1000);
+
+        let interval = Math.floor(seconds / 31536000);
+        if (interval >= 1) return interval + (interval === 1 ? ' year ago' : ' years ago');
+        interval = Math.floor(seconds / 2592000);
+        if (interval >= 1) return interval + (interval === 1 ? ' month ago' : ' months ago');
+        interval = Math.floor(seconds / 86400);
+        if (interval >= 1) return interval + (interval === 1 ? ' day ago' : ' days ago');
+        interval = Math.floor(seconds / 3600);
+        if (interval >= 1) return interval + (interval === 1 ? ' hour ago' : ' hours ago');
+        interval = Math.floor(seconds / 60);
+        if (interval >= 1) return interval + (interval === 1 ? ' minute ago' : ' minutes ago');
+        return 'Just now';
+    }
+};
+
 // --- KEY & CACHE MANAGERS ---
 const KeyManager = {
     getKey: () => localStorage.getItem(CONFIG.STORAGE_KEY) || '',
@@ -68,17 +106,42 @@ const YouTubeAPI = {
         return data;
     },
 
+    // Batch fetches viewCount & likeCount for up to 50 video IDs in a single 1-unit request
+    async enrichVideoDetails(items) {
+        if (!items || items.length === 0) return [];
+        const videoIds = items.map(item => typeof item.id === 'object' ? item.id.videoId : item.id).filter(Boolean);
+        if (videoIds.length === 0) return items;
+
+        try {
+            const data = await this.fetchWithKey(`/videos?part=snippet,statistics&id=${videoIds.join(',')}`);
+            if (data && data.items) {
+                const detailsMap = new Map(data.items.map(v => [v.id, v]));
+                return items.map(item => {
+                    const id = typeof item.id === 'object' ? item.id.videoId : item.id;
+                    const fullDetails = detailsMap.get(id);
+                    return {
+                        id: id,
+                        snippet: fullDetails?.snippet || item.snippet,
+                        statistics: fullDetails?.statistics || {}
+                    };
+                });
+            }
+        } catch (e) {
+            console.error('Error enriching video stats:', e);
+        }
+        return items;
+    },
+
     async getTrending() {
-        const cacheKey = 'yt_trending_all'; // Updated cache key to reflect unfiltered data
+        const cacheKey = 'yt_trending_all_v2';
         const cached = CacheManager.get(cacheKey);
         if (cached) return cached;
         try {
-            const data = await this.fetchWithKey('/videos?part=snippet,status&chart=mostPopular&maxResults=40');
+            // Requested 'statistics' in part parameter directly
+            const data = await this.fetchWithKey('/videos?part=snippet,statistics,status&chart=mostPopular&maxResults=24');
             if (data && data.items) {
-                // MODIFIED: Removed strict filters for embeddable and publicStatsViewable statuses
-                const playable = data.items.slice(0, 16);
-                CacheManager.set(cacheKey, playable, CONFIG.CACHE_EXPIRY.TRENDING);
-                return playable;
+                CacheManager.set(cacheKey, data.items, CONFIG.CACHE_EXPIRY.TRENDING);
+                return data.items;
             }
             return [];
         } catch (error) { return []; }
@@ -86,22 +149,20 @@ const YouTubeAPI = {
 
     async search(query, isLive = false) {
         if (!query) return [];
-        const cacheKey = `yt_search_${query.replace(/\s+/g, '').toLowerCase()}_${isLive}_all`;
+        const cacheKey = `yt_search_${query.replace(/\s+/g, '').toLowerCase()}_${isLive}_enriched`;
         const cached = CacheManager.get(cacheKey);
         if (cached) return cached;
         
         try {
             let endpoint = `/search?part=snippet&q=${encodeURIComponent(query)}&type=video&safeSearch=moderate&maxResults=24`;
-            
-            // MODIFIED: Removed '&videoEmbeddable=true&videoSyndicated=true' restrictions
-            if (isLive) {
-                endpoint += '&eventType=live';
-            }
+            if (isLive) endpoint += '&eventType=live';
             
             const data = await this.fetchWithKey(endpoint);
             if (data && data.items) {
-                CacheManager.set(cacheKey, data.items, CONFIG.CACHE_EXPIRY.SEARCH);
-                return data.items;
+                // Batch-enrich video search results with view counts and likes
+                const enrichedItems = await this.enrichVideoDetails(data.items);
+                CacheManager.set(cacheKey, enrichedItems, CONFIG.CACHE_EXPIRY.SEARCH);
+                return enrichedItems;
             }
             return [];
         } catch (error) { return []; }
@@ -143,7 +204,6 @@ const UI = {
             active.classList.add('bg-gray-800', 'text-red-500');
         }
         
-        // NEW: Automatically close sidebar on mobile after clicking a link
         const sidebar = document.getElementById('sidebar');
         if (sidebar && window.innerWidth < 768) {
             sidebar.classList.add('hidden');
@@ -166,14 +226,12 @@ const UI = {
     async loadExplore() {
         this.setActiveMenu('nav-explore');
         this.resetView('Explore Topics');
-        // Standard video discovery
         const videos = await YouTubeAPI.search('Documentary travel technology');
         this.renderGrid(videos);
     },
     async loadLive() {
         this.setActiveMenu('nav-live');
         this.resetView('<span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-red-500 animate-pulse"></span> Happening Now</span>');
-        // Explicitly searches for live broadcasts
         const videos = await YouTubeAPI.search('live news sports gaming lo-fi', true);
         this.renderGrid(videos);
     },
@@ -214,17 +272,22 @@ const UI = {
         }
 
         videos.forEach(video => {
-            const videoId = isLibraryFormat ? video.id : (video.id.videoId || video.id);
-            const snippet = video.snippet;
-            const thumbnailUrl = snippet.thumbnails?.high?.url || snippet.thumbnails?.default?.url || 'https://via.placeholder.com/640x360.png?text=No+Image';
+            const videoId = typeof video.id === 'object' ? video.id.videoId : video.id;
+            const snippet = video.snippet || {};
+            const stats = video.statistics || {};
             
-            // Check if the video is currently broadcasting live
+            const thumbnailUrl = snippet.thumbnails?.high?.url || snippet.thumbnails?.default?.url || 'https://via.placeholder.com/640x360.png?text=No+Image';
             const isLive = snippet.liveBroadcastContent === 'live';
             const liveBadgeHTML = isLive ? `<div class="absolute bottom-2 right-2 bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wide flex items-center gap-1"><span class="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span>Live</div>` : '';
 
+            // Formatted Stats
+            const formattedViews = Formatters.views(stats.viewCount);
+            const formattedDate = Formatters.date(snippet.publishedAt);
+            const metaInfoText = isLive ? 'Live Streaming' : `${formattedViews} • ${formattedDate}`;
+
             const card = document.createElement('div');
             card.className = 'video-card group cursor-pointer flex flex-col gap-3';
-            card.onclick = () => this.openPlayer(videoId, snippet);
+            card.onclick = () => this.openPlayer(video);
 
             card.innerHTML = `
                 <div class="thumbnail-wrapper relative w-full aspect-video bg-gray-800 rounded-xl overflow-hidden">
@@ -234,30 +297,39 @@ const UI = {
                 </div>
                 <div class="flex gap-3 px-1">
                     <div class="flex-1 min-w-0">
-                        <h3 class="text-sm font-semibold text-white line-clamp-2 leading-snug group-hover:text-red-400 transition-colors">${snippet.title}</h3>
-                        <p class="text-xs text-gray-400 mt-1 hover:text-white transition">${snippet.channelTitle}</p>
+                        <h3 class="text-sm font-semibold text-white line-clamp-2 leading-snug group-hover:text-red-400 transition-colors">${snippet.title || 'Untitled'}</h3>
+                        <p class="text-xs text-gray-400 mt-1 hover:text-white transition">${snippet.channelTitle || ''}</p>
+                        <p class="text-[11px] text-gray-500 mt-0.5">${metaInfoText}</p>
                     </div>
                 </div>`;
             this.grid.appendChild(card);
         });
     },
 
-    openPlayer(videoId, snippet) {
+    openPlayer(videoObj) {
         this.grid.classList.add('hidden');
         this.title.classList.add('hidden');
         this.playerView.classList.remove('hidden');
         
-        const videoData = { id: videoId, snippet: snippet };
-        this.currentVideoObj = videoData;
-        LibraryManager.saveToHistory(videoData);
+        const videoId = typeof videoObj.id === 'object' ? videoObj.id.videoId : videoObj.id;
+        const snippet = videoObj.snippet || {};
+        const stats = videoObj.statistics || {};
+
+        this.currentVideoObj = { id: videoId, snippet, statistics: stats };
+        LibraryManager.saveToHistory(this.currentVideoObj);
         this.updateSaveButtonUI(LibraryManager.isSaved(videoId));
 
         const player = document.getElementById('videoPlayer');
         const currentOrigin = (window.location.hostname === '' || window.location.hostname === 'localhost') ? 'https://localhost' : window.location.origin;
         player.src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&origin=${currentOrigin}`;
         
-        document.getElementById('videoTitle').textContent = snippet.title;
-        document.getElementById('videoChannel').textContent = snippet.channelTitle;
+        // Metadata Updates in Player View
+        document.getElementById('videoTitle').textContent = snippet.title || 'Untitled';
+        document.getElementById('videoChannel').textContent = snippet.channelTitle || 'Unknown Channel';
+        document.getElementById('videoViews').textContent = Formatters.views(stats.viewCount);
+        document.getElementById('videoDate').textContent = Formatters.date(snippet.publishedAt);
+        document.getElementById('videoLikes').textContent = Formatters.likes(stats.likeCount);
+
         document.getElementById('contentArea').scrollTo({ top: 0, behavior: 'smooth' });
     },
 
