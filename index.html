@@ -3,6 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Block known third-party ad/tracker telemetry network domains while keeping API/CSS functionality -->
+    <meta http-equiv="Content-Security-Policy" content="
+        default-src 'self' 'unsafe-inline' 'unsafe-eval' https: data: blob:;
+        script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com https://www.youtube.com https://s.ytimg.com;
+        connect-src 'self' https://www.googleapis.com https://www.youtube-nocookie.com https://www.youtube.com;
+        child-src https://www.youtube-nocookie.com https://www.youtube.com;
+        frame-src https://www.youtube-nocookie.com https://www.youtube.com;
+        img-src 'self' data: https: blob:;
+        media-src 'self' data: blob: https:;
+    ">
     <title>StreamQ</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
@@ -27,14 +37,14 @@
             <li><a href="#" onclick="UI.loadHome()" id="nav-home" class="nav-link flex items-center px-4 py-3 bg-gray-800 rounded-lg text-red-500 transition-colors"><i class="fa-solid fa-house w-6"></i> Home</a></li>
             <li><a href="#" onclick="UI.loadTrending()" id="nav-trending" class="nav-link flex items-center px-4 py-3 hover:bg-gray-800 rounded-lg text-gray-400 hover:text-white transition-colors"><i class="fa-solid fa-fire w-6"></i> Trending</a></li>
             <li><a href="#" onclick="UI.loadExplore()" id="nav-explore" class="nav-link flex items-center px-4 py-3 hover:bg-gray-800 rounded-lg text-gray-400 hover:text-white transition-colors"><i class="fa-solid fa-compass w-6"></i> Explore</a></li>
-            <!-- NEW LIVE SECTION -->
+            <!-- LIVE SECTION -->
             <li>
                 <a href="#" onclick="UI.loadLive()" id="nav-live" class="nav-link flex items-center justify-between px-4 py-3 hover:bg-gray-800 rounded-lg text-gray-400 hover:text-white transition-colors">
                     <div class="flex items-center"><i class="fa-solid fa-tower-broadcast w-6"></i> Live</div>
                     <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
                 </a>
             </li>
-            <!-- NEW NOW PLAYING SECTION (Hidden by default) -->
+            <!-- NOW PLAYING SECTION (Hidden by default) -->
             <li id="nav-now-playing-container" class="hidden">
                 <a href="#" onclick="UI.showNowPlaying()" id="nav-now-playing" class="nav-link flex items-center px-4 py-3 hover:bg-gray-800 rounded-lg text-gray-400 hover:text-white transition-colors">
                     <i class="fa-solid fa-circle-play w-6 text-red-500 animate-pulse"></i> Now Playing
@@ -48,11 +58,11 @@
     </nav>
 </aside>
 
+    <audio id="bgAudio" loop playsinline src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA="></audio>
     <!-- Main Content -->
     <main class="flex-1 flex flex-col h-full relative">
         <!-- Top Navbar -->
         <header class="h-16 flex items-center justify-between px-6 bg-[#0f0f11]/90 backdrop-blur-md sticky top-0 z-10 border-b border-gray-800 gap-4">
-            <!-- Updated Mobile Header Area -->
             <div class="flex items-center md:hidden">
                 <button onclick="document.getElementById('sidebar').classList.remove('hidden')" class="mr-4 text-gray-400 hover:text-white transition">
                     <i class="fa-solid fa-bars text-xl"></i>
@@ -92,54 +102,53 @@
             </div>
 
             <!-- Video Player View -->
-            <!-- Video Player View -->
-<div id="playerView" class="hidden flex flex-col lg:flex-row gap-8 max-w-7xl mx-auto w-full">
-    <div class="flex-1 flex flex-col">
-        <!-- Back Button -->
-        <button onclick="UI.closePlayer()" class="self-start mb-4 text-gray-400 hover:text-white flex items-center transition">
-            <i class="fa-solid fa-arrow-left mr-2"></i> Back
-        </button>
-        
-        <!-- Video Player -->
-        <div class="w-full aspect-video bg-black rounded-xl overflow-hidden shadow-2xl border border-gray-800">
-            <iframe id="videoPlayer" class="w-full h-full" src="" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" sandbox="allow-scripts allow-same-origin allow-presentation" allowfullscreen></iframe>
-        </div>
-        
-        <!-- Video Title -->
-        <h1 id="videoTitle" class="text-2xl font-bold mt-4 line-clamp-2"></h1>
-        
-        <!-- ALL STATS DIRECTLY UNDER TITLE -->
-        <div class="flex items-center gap-3 text-sm text-gray-400 mt-2 font-medium">
-            <span id="videoViews" class="text-gray-300"></span>
-            <span>•</span>
-            <span id="videoDate"></span>
-            <span>•</span>
-            <span class="flex items-center gap-1.5 text-gray-300" title="Likes">
-                <i class="fa-regular fa-thumbs-up"></i>
-                <span id="videoLikes">0</span>
-            </span>
-        </div>
+            <div id="playerView" class="hidden flex flex-col lg:flex-row gap-8 max-w-7xl mx-auto w-full">
+                <div class="flex-1 flex flex-col">
+                    <!-- Back Button -->
+                    <button onclick="UI.closePlayer()" class="self-start mb-4 text-gray-400 hover:text-white flex items-center transition">
+                        <i class="fa-solid fa-arrow-left mr-2"></i> Back
+                    </button>
+                    
+                    <!-- Video Player -->
+                    <div class="w-full aspect-video bg-black rounded-xl overflow-hidden shadow-2xl border border-gray-800">
+                        <div id="videoPlayer" class="w-full h-full"></div>
+                    </div>
+                    
+                    <!-- Video Title -->
+                    <h1 id="videoTitle" class="text-2xl font-bold mt-4 line-clamp-2"></h1>
+                    
+                    <!-- Stats Area -->
+                    <div class="flex items-center gap-3 text-sm text-gray-400 mt-2 font-medium">
+                        <span id="videoViews" class="text-gray-300"></span>
+                        <span>•</span>
+                        <span id="videoDate"></span>
+                        <span>•</span>
+                        <span class="flex items-center gap-1.5 text-gray-300" title="Likes">
+                            <i class="fa-regular fa-thumbs-up"></i>
+                            <span id="videoLikes">0</span>
+                        </span>
+                    </div>
 
-        <!-- Channel Info & Actions -->
-        <div class="flex items-center justify-between mt-4 pb-4 border-b border-gray-800 gap-4 flex-wrap">
-            <div class="flex items-center">
-                <div class="w-10 h-10 rounded-full bg-gray-700 mr-3 flex justify-center items-center">
-                    <i class="fa-solid fa-user text-gray-400"></i>
-                </div>
-                <div>
-                    <p id="videoChannel" class="font-semibold text-gray-200"></p>
+                    <!-- Channel Info & Actions -->
+                    <div class="flex items-center justify-between mt-4 pb-4 border-b border-gray-800 gap-4 flex-wrap">
+                        <div class="flex items-center">
+                            <div class="w-10 h-10 rounded-full bg-gray-700 mr-3 flex justify-center items-center">
+                                <i class="fa-solid fa-user text-gray-400"></i>
+                            </div>
+                            <div>
+                                <p id="videoChannel" class="font-semibold text-gray-200"></p>
+                            </div>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="flex items-center gap-3">
+                            <button id="saveBtn" onclick="UI.toggleSaveCurrentVideo()" class="bg-[#27272a] border border-gray-700 text-white px-5 py-2 rounded-full text-sm font-bold hover:bg-gray-700 transition flex items-center gap-2">
+                                <i class="fa-regular fa-bookmark"></i> <span>Save</span>
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
-
-            <!-- Action Buttons -->
-            <div class="flex items-center gap-3">
-                <button id="saveBtn" onclick="UI.toggleSaveCurrentVideo()" class="bg-[#27272a] border border-gray-700 text-white px-5 py-2 rounded-full text-sm font-bold hover:bg-gray-700 transition flex items-center gap-2">
-                    <i class="fa-regular fa-bookmark"></i> <span>Save</span>
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
         </div>
     </main>
 
@@ -153,7 +162,7 @@
                 </div>
                 <button onclick="UI.closeModal()" class="text-gray-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
             </div>
-            <p class="text-xs text-gray-400 mb-4">Please your YouTube Authorization token here</p>
+            <p class="text-xs text-gray-400 mb-4">Please enter your YouTube Authorization token here</p>
             <div class="space-y-4">
                 <div>
                     <input type="password" id="apiKeyInput" placeholder="AIzaSy..." class="w-full bg-[#0f0f11] border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-red-500 transition">
@@ -167,6 +176,7 @@
         </div>
     </div>
 
+    <script src="https://www.youtube.com/iframe_api"></script>
     <script src="app.js"></script>
 </body>
 </html>
