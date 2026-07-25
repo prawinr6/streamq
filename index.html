@@ -102,53 +102,60 @@
             </div>
 
             <!-- Video Player View -->
-            <div id="playerView" class="hidden flex flex-col lg:flex-row gap-8 max-w-7xl mx-auto w-full">
-                <div class="flex-1 flex flex-col">
-                    <!-- Back Button -->
-                    <button onclick="UI.closePlayer()" class="self-start mb-4 text-gray-400 hover:text-white flex items-center transition">
-                        <i class="fa-solid fa-arrow-left mr-2"></i> Back
-                    </button>
-                    
-                    <!-- Video Player -->
-                    <div class="w-full aspect-video bg-black rounded-xl overflow-hidden shadow-2xl border border-gray-800">
-                        <div id="videoPlayer" class="w-full h-full"></div>
-                    </div>
-                    
-                    <!-- Video Title -->
-                    <h1 id="videoTitle" class="text-2xl font-bold mt-4 line-clamp-2"></h1>
-                    
-                    <!-- Stats Area -->
-                    <div class="flex items-center gap-3 text-sm text-gray-400 mt-2 font-medium">
-                        <span id="videoViews" class="text-gray-300"></span>
-                        <span>•</span>
-                        <span id="videoDate"></span>
-                        <span>•</span>
-                        <span class="flex items-center gap-1.5 text-gray-300" title="Likes">
-                            <i class="fa-regular fa-thumbs-up"></i>
-                            <span id="videoLikes">0</span>
-                        </span>
-                    </div>
+<div id="playerView" class="hidden flex flex-col lg:flex-row gap-8 max-w-7xl mx-auto w-full">
+    <div class="flex-1 flex flex-col">
+        
+        <!-- Minimise to Background Button -->
+        <button onclick="UI.minimisePlayer()" class="self-start mb-4 text-gray-400 hover:text-white flex items-center transition">
+            <i class="fa-solid fa-compress mr-2"></i> Minimise to background
+        </button>
+        
+        <!-- Video Player -->
+        <div class="w-full aspect-video bg-black rounded-xl overflow-hidden shadow-2xl border border-gray-800">
+            <div id="videoPlayer" class="w-full h-full"></div>
+        </div>
+        
+        <!-- Video Title -->
+        <h1 id="videoTitle" class="text-2xl font-bold mt-4 line-clamp-2"></h1>
+        
+        <!-- Stats Area -->
+        <div class="flex items-center gap-3 text-sm text-gray-400 mt-2 font-medium">
+            <span id="videoViews" class="text-gray-300"></span>
+            <span>•</span>
+            <span id="videoDate"></span>
+            <span>•</span>
+            <span class="flex items-center gap-1.5 text-gray-300" title="Likes">
+                <i class="fa-regular fa-thumbs-up"></i>
+                <span id="videoLikes">0</span>
+            </span>
+        </div>
 
-                    <!-- Channel Info & Actions -->
-                    <div class="flex items-center justify-between mt-4 pb-4 border-b border-gray-800 gap-4 flex-wrap">
-                        <div class="flex items-center">
-                            <div class="w-10 h-10 rounded-full bg-gray-700 mr-3 flex justify-center items-center">
-                                <i class="fa-solid fa-user text-gray-400"></i>
-                            </div>
-                            <div>
-                                <p id="videoChannel" class="font-semibold text-gray-200"></p>
-                            </div>
-                        </div>
-
-                        <!-- Action Buttons -->
-                        <div class="flex items-center gap-3">
-                            <button id="saveBtn" onclick="UI.toggleSaveCurrentVideo()" class="bg-[#27272a] border border-gray-700 text-white px-5 py-2 rounded-full text-sm font-bold hover:bg-gray-700 transition flex items-center gap-2">
-                                <i class="fa-regular fa-bookmark"></i> <span>Save</span>
-                            </button>
-                        </div>
-                    </div>
+        <!-- Channel Info & Actions -->
+        <div class="flex items-center justify-between mt-4 pb-4 border-b border-gray-800 gap-4 flex-wrap">
+            <div class="flex items-center">
+                <div class="w-10 h-10 rounded-full bg-gray-700 mr-3 flex justify-center items-center">
+                    <i class="fa-solid fa-user text-gray-400"></i>
+                </div>
+                <div>
+                    <p id="videoChannel" class="font-semibold text-gray-200"></p>
                 </div>
             </div>
+
+            <!-- Action Buttons -->
+            <div class="flex items-center gap-3">
+                <!-- New Stop Button -->
+                <button onclick="UI.closePlayer()" class="bg-red-900/50 border border-red-700 text-red-300 px-5 py-2 rounded-full text-sm font-bold hover:bg-red-800/50 transition flex items-center gap-2">
+                    <i class="fa-solid fa-stop"></i> <span>Stop</span>
+                </button>
+                
+                <!-- Existing Save Button -->
+                <button id="saveBtn" onclick="UI.toggleSaveCurrentVideo()" class="bg-[#27272a] border border-gray-700 text-white px-5 py-2 rounded-full text-sm font-bold hover:bg-gray-700 transition flex items-center gap-2">
+                    <i class="fa-regular fa-bookmark"></i> <span>Save</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
         </div>
     </main>
 
