@@ -311,6 +311,11 @@ const UI = {
         this.title.classList.add('hidden');
         this.playerView.classList.remove('hidden');
         
+        // Show the Now Playing menu item
+        const nowPlayingMenu = document.getElementById('nav-now-playing-container');
+        if (nowPlayingMenu) nowPlayingMenu.classList.remove('hidden');
+        this.setActiveMenu('nav-now-playing');
+        
         const videoId = typeof videoObj.id === 'object' ? videoObj.id.videoId : videoObj.id;
         const snippet = videoObj.snippet || {};
         const stats = videoObj.statistics || {};
@@ -321,7 +326,9 @@ const UI = {
 
         const player = document.getElementById('videoPlayer');
         const currentOrigin = (window.location.hostname === '' || window.location.hostname === 'localhost') ? 'https://localhost' : window.location.origin;
-        player.src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&origin=${currentOrigin}`;
+        
+        // Added playsinline=1 to improve mobile playback behavior
+        player.src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1&origin=${currentOrigin}`;
         
         // Metadata Updates in Player View
         document.getElementById('videoTitle').textContent = snippet.title || 'Untitled';
@@ -331,6 +338,30 @@ const UI = {
         document.getElementById('videoLikes').textContent = Formatters.likes(stats.likeCount);
 
         document.getElementById('contentArea').scrollTo({ top: 0, behavior: 'smooth' });
+
+        // --- OS Media Session API for Lock Screen & Background Data ---
+        if ('mediaSession' in navigator) {
+            navigator.mediaSession.metadata = new MediaMetadata({
+                title: snippet.title || 'Untitled',
+                artist: snippet.channelTitle || 'Unknown Channel',
+                artwork: [
+                    { 
+                        src: snippet.thumbnails?.high?.url || snippet.thumbnails?.default?.url || 'https://via.placeholder.com/640x360.png', 
+                        sizes: '480x360', 
+                        type: 'image/jpeg' 
+                    }
+                ]
+            });
+        }
+    },
+
+    // Add this new method right above closePlayer()
+    showNowPlaying() {
+        if (!this.currentVideoObj) return;
+        this.setActiveMenu('nav-now-playing');
+        this.grid.classList.add('hidden');
+        this.title.classList.add('hidden');
+        this.playerView.classList.remove('hidden');
     },
 
     closePlayer() {
@@ -339,6 +370,13 @@ const UI = {
         this.grid.classList.remove('hidden');
         this.title.classList.remove('hidden');
         this.currentVideoObj = null;
+
+        // Hide Now Playing menu item
+        const nowPlayingMenu = document.getElementById('nav-now-playing-container');
+        if (nowPlayingMenu) nowPlayingMenu.classList.add('hidden');
+
+        // Clear OS Media Session
+        if ('mediaSession' in navigator) navigator.mediaSession.metadata = null;
     },
 
     toggleSaveCurrentVideo() {
@@ -366,7 +404,7 @@ UI.searchInput.addEventListener('input', (e) => {
     searchTimeout = setTimeout(() => {
         if (query.length > 2) UI.handleSearch(query);
         else if (query.length === 0) UI.loadHome();
-    }, 2000);
+    }, 800);
 });
 
 document.addEventListener('DOMContentLoaded', () => {
