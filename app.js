@@ -1,7 +1,11 @@
 const CONFIG = {
     BASE_URL: 'https://www.googleapis.com/youtube/v3',
     STORAGE_KEY: 'streamq_yt_api_key',
-    CACHE_EXPIRY: { TRENDING: 1000 * 60 * 60 * 3, SEARCH: 1000 * 60 * 60 * 24 }
+    CACHE_EXPIRY: { 
+        TRENDING: 1000 * 60 * 60 * 3, 
+        SEARCH: 1000 * 60 * 60 * 24,
+        REGION: 1000 * 60 * 60 * 24 // 24 Hours
+    }
 };
 
 // Global YouTube Player instance reference
@@ -11,6 +15,35 @@ let isYTAPIReady = false;
 // YouTube IFrame API Ready Callback
 window.onYouTubeIframeAPIReady = function() {
     isYTAPIReady = true;
+};
+
+// --- GEOLOCATION SERVICE ---
+const GeoService = {
+    async getUserRegion() {
+        const cacheKey = 'yt_user_region_info';
+        const cached = CacheManager.get(cacheKey);
+        if (cached) return cached;
+        
+        try {
+            // Free IP geolocation endpoint without API key limits
+            const res = await fetch('https://ipapi.co/json/');
+            const data = await res.json();
+            
+            const regionInfo = {
+                code: data.country_code || 'IN', 
+                name: data.country_name || 'India'
+            };
+            
+            // Cache the location for 24 hours to save external API bandwidth
+            CacheManager.set(cacheKey, regionInfo, CONFIG.CACHE_EXPIRY.REGION);
+            return regionInfo;
+        } catch (error) {
+            console.error('Failed to fetch location. Defaulting to India.', error);
+            const defaultRegion = { code: 'IN', name: 'India' };
+            CacheManager.set(cacheKey, defaultRegion, CONFIG.CACHE_EXPIRY.REGION);
+            return defaultRegion;
+        }
+    }
 };
 
 // --- FORMATTERS ---
@@ -140,12 +173,14 @@ const YouTubeAPI = {
         return items;
     },
 
-    async getTrending() {
-        const cacheKey = 'yt_trending_all_v2';
+    async getTrending(regionCode = 'IN') {
+        const cacheKey = `yt_trending_${regionCode}_v2`;
         const cached = CacheManager.get(cacheKey);
         if (cached) return cached;
+        
         try {
-            const data = await this.fetchWithKey('/videos?part=snippet,statistics,status&chart=mostPopular&maxResults=24');
+            // Native YouTube parameter 'regionCode' optimizes localization
+            const data = await this.fetchWithKey(`/videos?part=snippet,statistics,status&chart=mostPopular&regionCode=${regionCode}&maxResults=24`);
             if (data && data.items) {
                 CacheManager.set(cacheKey, data.items, CONFIG.CACHE_EXPIRY.TRENDING);
                 return data.items;
@@ -154,14 +189,15 @@ const YouTubeAPI = {
         } catch (error) { return []; }
     },
 
-    async search(query, isLive = false) {
+    async search(query, isLive = false, regionCode = 'IN') {
         if (!query) return [];
-        const cacheKey = `yt_search_${query.replace(/\s+/g, '').toLowerCase()}_${isLive}_enriched`;
+        // Append regionCode to cacheKey to avoid serving incorrect regional data
+        const cacheKey = `yt_search_${query.replace(/\s+/g, '').toLowerCase()}_${isLive}_${regionCode}_enriched`;
         const cached = CacheManager.get(cacheKey);
         if (cached) return cached;
 
         try {
-            let endpoint = `/search?part=snippet&q=${encodeURIComponent(query)}&type=video&safeSearch=moderate&maxResults=24`;
+            let endpoint = `/search?part=snippet&q=${encodeURIComponent(query)}&type=video&safeSearch=moderate&regionCode=${regionCode}&maxResults=24`;
             if (isLive) endpoint += '&eventType=live';
 
             const data = await this.fetchWithKey(endpoint);
@@ -217,26 +253,30 @@ const UI = {
 
     async loadHome() {
         this.setActiveMenu('nav-home');
-        this.resetView('Recommended For You');
-        const videos = await YouTubeAPI.search('Get trending today in Bengaluru');
+        const region = await GeoService.getUserRegion();
+        this.resetView(`Recommended For You <span class="text-sm font-normal text-gray-500 ml-2">(${region.name})</span>`);
+        const videos = await YouTubeAPI.getTrending(region.code);
         this.renderGrid(videos);
     },
     async loadTrending() {
         this.setActiveMenu('nav-trending');
-        this.resetView('Global Trending');
-        const videos = await YouTubeAPI.search('Get trending today in India');
+        const region = await GeoService.getUserRegion();
+        this.resetView(`Trending in ${region.name}`);
+        const videos = await YouTubeAPI.search(`Trending today in ${region.name}`, false, region.code);
         this.renderGrid(videos);
     },
     async loadExplore() {
         this.setActiveMenu('nav-explore');
-        this.resetView('Explore Topics');
-        const videos = await YouTubeAPI.search('Documentary travel technology');
+        const region = await GeoService.getUserRegion();
+        this.resetView(`Explore ${region.name}`);
+        const videos = await YouTubeAPI.search(`Documentary travel technology ${region.name}`, false, region.code);
         this.renderGrid(videos);
     },
     async loadLive() {
         this.setActiveMenu('nav-live');
-        this.resetView('<span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-red-500 animate-pulse"></span> Happening Now</span>');
-        const videos = await YouTubeAPI.search('Tamil news live', true);
+        const region = await GeoService.getUserRegion();
+        this.resetView(`<span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-red-500 animate-pulse"></span> Happening Now in ${region.name}</span>`);
+        const videos = await YouTubeAPI.search(`${region.name} news live`, true, region.code);
         this.renderGrid(videos);
     },
     loadHistory() {
@@ -253,7 +293,8 @@ const UI = {
         this.setActiveMenu('');
         this.resetView(`Search Results for "${query}"`);
         const isLiveQuery = query.toLowerCase().includes('live');
-        const videos = await YouTubeAPI.search(query, isLiveQuery);
+        const region = await GeoService.getUserRegion();
+        const videos = await YouTubeAPI.search(query, isLiveQuery, region.code);
         this.renderGrid(videos);
     },
 
