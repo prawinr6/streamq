@@ -4,7 +4,16 @@ const CONFIG = {
     CACHE_EXPIRY: { TRENDING: 1000 * 60 * 60 * 3, SEARCH: 1000 * 60 * 60 * 24 }
 };
 
-// --- FORMATTERS (Views, Likes, Relative Dates) ---
+// Global YouTube Player instance reference
+let ytPlayer = null;
+let isYTAPIReady = false;
+
+// YouTube IFrame API Ready Callback
+window.onYouTubeIframeAPIReady = function() {
+    isYTAPIReady = true;
+};
+
+// --- FORMATTERS ---
 const Formatters = {
     views(count) {
         if (!count) return '0 views';
@@ -70,13 +79,13 @@ const CacheManager = {
     clearAll: () => Object.keys(localStorage).forEach(k => { if (k.startsWith('yt_')) localStorage.removeItem(k); })
 };
 
-// --- LIBRARY MANAGER (History & Saved Data) ---
+// --- LIBRARY MANAGER ---
 const LibraryManager = {
     saveToHistory: (videoObj) => {
         let history = JSON.parse(localStorage.getItem('yt_history') || '[]');
-        history = history.filter(v => v.id !== videoObj.id); 
-        history.unshift(videoObj); 
-        if (history.length > 50) history.pop(); 
+        history = history.filter(v => v.id !== videoObj.id);
+        history.unshift(videoObj);
+        if (history.length > 50) history.pop();
         localStorage.setItem('yt_history', JSON.stringify(history));
     },
     getHistory: () => JSON.parse(localStorage.getItem('yt_history') || '[]'),
@@ -86,7 +95,7 @@ const LibraryManager = {
         if (exists) saved = saved.filter(v => v.id !== videoObj.id);
         else saved.unshift(videoObj);
         localStorage.setItem('yt_saved', JSON.stringify(saved));
-        return !exists; 
+        return !exists;
     },
     isSaved: (videoId) => JSON.parse(localStorage.getItem('yt_saved') || '[]').some(v => v.id === videoId),
     getSaved: () => JSON.parse(localStorage.getItem('yt_saved') || '[]')
@@ -106,7 +115,6 @@ const YouTubeAPI = {
         return data;
     },
 
-    // Batch fetches viewCount & likeCount for up to 50 video IDs in a single 1-unit request
     async enrichVideoDetails(items) {
         if (!items || items.length === 0) return [];
         const videoIds = items.map(item => typeof item.id === 'object' ? item.id.videoId : item.id).filter(Boolean);
@@ -137,7 +145,6 @@ const YouTubeAPI = {
         const cached = CacheManager.get(cacheKey);
         if (cached) return cached;
         try {
-            // Requested 'statistics' in part parameter directly
             const data = await this.fetchWithKey('/videos?part=snippet,statistics,status&chart=mostPopular&maxResults=24');
             if (data && data.items) {
                 CacheManager.set(cacheKey, data.items, CONFIG.CACHE_EXPIRY.TRENDING);
@@ -152,14 +159,13 @@ const YouTubeAPI = {
         const cacheKey = `yt_search_${query.replace(/\s+/g, '').toLowerCase()}_${isLive}_enriched`;
         const cached = CacheManager.get(cacheKey);
         if (cached) return cached;
-        
+
         try {
             let endpoint = `/search?part=snippet&q=${encodeURIComponent(query)}&type=video&safeSearch=moderate&maxResults=24`;
             if (isLive) endpoint += '&eventType=live';
-            
+
             const data = await this.fetchWithKey(endpoint);
             if (data && data.items) {
-                // Batch-enrich video search results with view counts and likes
                 const enrichedItems = await this.enrichVideoDetails(data.items);
                 CacheManager.set(cacheKey, enrichedItems, CONFIG.CACHE_EXPIRY.SEARCH);
                 return enrichedItems;
@@ -178,20 +184,19 @@ const UI = {
     title: document.getElementById('pageTitle'),
     currentVideoObj: null,
 
-    // Modal Methods
     modal: document.getElementById('apiKeyModal'),
     modalMsg: document.getElementById('modalMessage'),
     statusBadge: document.getElementById('keyStatusBadge'),
+
     updateStatusBadge() { this.statusBadge.className = `w-2 h-2 rounded-full ${KeyManager.getKey() ? 'bg-green-500' : 'bg-red-500'}`; },
     openModal() { document.getElementById('apiKeyInput').value = KeyManager.getKey(); this.modalMsg.classList.add('hidden'); this.modal.classList.remove('hidden'); this.modal.classList.add('flex'); },
     closeModal() { this.modal.classList.add('hidden'); this.modal.classList.remove('flex'); },
-    showModalMessage(msg, type) { 
-        this.modalMsg.textContent = msg; 
+    showModalMessage(msg, type) {
+        this.modalMsg.textContent = msg;
         this.modalMsg.className = `text-xs py-2 px-3 rounded-lg mt-2 ${type === 'error' ? 'bg-red-900/50 text-red-300' : type === 'success' ? 'bg-green-900/50 text-green-300' : 'bg-blue-900/50 text-blue-300'}`;
     },
     promptForKey(reason) { this.showLoader(false); this.openModal(); this.showModalMessage(reason, 'error'); },
 
-    // State Methods
     showLoader(show) { this.loader.classList.toggle('hidden', !show); if (show) this.grid.innerHTML = ''; },
     setActiveMenu(id) {
         document.querySelectorAll('.nav-link').forEach(el => {
@@ -203,14 +208,13 @@ const UI = {
             active.classList.remove('text-gray-400');
             active.classList.add('bg-gray-800', 'text-red-500');
         }
-        
+
         const sidebar = document.getElementById('sidebar');
         if (sidebar && window.innerWidth < 768) {
             sidebar.classList.add('hidden');
         }
     },
 
-    // View Loaders
     async loadHome() {
         this.setActiveMenu('nav-home');
         this.resetView('Recommended For You');
@@ -220,7 +224,7 @@ const UI = {
     async loadTrending() {
         this.setActiveMenu('nav-trending');
         this.resetView('Global Trending');
-        const videos = await YouTubeAPI.search('Trending viral 2026'); 
+        const videos = await YouTubeAPI.search('Trending viral 2026');
         this.renderGrid(videos);
     },
     async loadExplore() {
@@ -246,7 +250,7 @@ const UI = {
         this.renderGrid(LibraryManager.getSaved(), true);
     },
     async handleSearch(query) {
-        this.setActiveMenu(''); 
+        this.setActiveMenu('');
         this.resetView(`Search Results for "${query}"`);
         const isLiveQuery = query.toLowerCase().includes('live');
         const videos = await YouTubeAPI.search(query, isLiveQuery);
@@ -275,12 +279,11 @@ const UI = {
             const videoId = typeof video.id === 'object' ? video.id.videoId : video.id;
             const snippet = video.snippet || {};
             const stats = video.statistics || {};
-            
+
             const thumbnailUrl = snippet.thumbnails?.high?.url || snippet.thumbnails?.default?.url || 'https://via.placeholder.com/640x360.png?text=No+Image';
             const isLive = snippet.liveBroadcastContent === 'live';
             const liveBadgeHTML = isLive ? `<div class="absolute bottom-2 right-2 bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wide flex items-center gap-1"><span class="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span>Live</div>` : '';
 
-            // Formatted Stats
             const formattedViews = Formatters.views(stats.viewCount);
             const formattedDate = Formatters.date(snippet.publishedAt);
             const metaInfoText = isLive ? 'Live Streaming' : `${formattedViews} • ${formattedDate}`;
@@ -306,16 +309,22 @@ const UI = {
         });
     },
 
+    // --- BACKGROUND AUDIO ENABLER & PRIVACY PLAYER INIT ---
     openPlayer(videoObj) {
+        // Step 1: Start playing silent audio immediately inside user tap gesture context
+        const bgAudio = document.getElementById('bgAudio');
+        if (bgAudio) {
+            bgAudio.play().catch(e => console.log('Silent audio playback start:', e));
+        }
+
         this.grid.classList.add('hidden');
         this.title.classList.add('hidden');
         this.playerView.classList.remove('hidden');
-        
-        // Show the Now Playing menu item
+
         const nowPlayingMenu = document.getElementById('nav-now-playing-container');
         if (nowPlayingMenu) nowPlayingMenu.classList.remove('hidden');
         this.setActiveMenu('nav-now-playing');
-        
+
         const videoId = typeof videoObj.id === 'object' ? videoObj.id.videoId : videoObj.id;
         const snippet = videoObj.snippet || {};
         const stats = videoObj.statistics || {};
@@ -324,12 +333,30 @@ const UI = {
         LibraryManager.saveToHistory(this.currentVideoObj);
         this.updateSaveButtonUI(LibraryManager.isSaved(videoId));
 
-        const player = document.getElementById('videoPlayer');
         const currentOrigin = (window.location.hostname === '' || window.location.hostname === 'localhost') ? 'https://localhost' : window.location.origin;
-        
-        // Added playsinline=1 to improve mobile playback behavior
-        player.src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1&origin=${currentOrigin}`;
-        
+
+        // Step 2: Initialize YouTube IFrame API Player with youtube-nocookie.com & disabled ad overlays
+        if (ytPlayer) {
+            ytPlayer.loadVideoById(videoId);
+        } else {
+            ytPlayer = new YT.Player('videoPlayer', {
+                host: 'https://www.youtube-nocookie.com', // Blocks tracking cookies & ad-profiling
+                videoId: videoId,
+                playerVars: {
+                    'autoplay': 1,
+                    'playsinline': 1,
+                    'enablejsapi': 1,
+                    'rel': 0,
+                    'modestbranding': 1,
+                    'iv_load_policy': 3, // Disables interactive ad cards and video overlays
+                    'origin': currentOrigin
+                },
+                events: {
+                    'onStateChange': this.onPlayerStateChange
+                }
+            });
+        }
+
         // Metadata Updates in Player View
         document.getElementById('videoTitle').textContent = snippet.title || 'Untitled';
         document.getElementById('videoChannel').textContent = snippet.channelTitle || 'Unknown Channel';
@@ -339,23 +366,67 @@ const UI = {
 
         document.getElementById('contentArea').scrollTo({ top: 0, behavior: 'smooth' });
 
-        // --- OS Media Session API for Lock Screen & Background Data ---
-        if ('mediaSession' in navigator) {
-            navigator.mediaSession.metadata = new MediaMetadata({
-                title: snippet.title || 'Untitled',
-                artist: snippet.channelTitle || 'Unknown Channel',
-                artwork: [
-                    { 
-                        src: snippet.thumbnails?.high?.url || snippet.thumbnails?.default?.url || 'https://via.placeholder.com/640x360.png', 
-                        sizes: '480x360', 
-                        type: 'image/jpeg' 
-                    }
-                ]
-            });
+        // Step 3: Register Media Session metadata & OS Action Handlers
+        this.setupMediaSession(snippet);
+    },
+
+    setupMediaSession(snippet) {
+        if (!('mediaSession' in navigator)) return;
+
+        navigator.mediaSession.metadata = new MediaMetadata({
+            title: snippet.title || 'Untitled',
+            artist: snippet.channelTitle || 'Unknown Channel',
+            artwork: [
+                {
+                    src: snippet.thumbnails?.high?.url || snippet.thumbnails?.default?.url || 'https://via.placeholder.com/640x360.png',
+                    sizes: '480x360',
+                    type: 'image/jpeg'
+                }
+            ]
+        });
+
+        // Lock Screen Play/Pause Action Handlers
+        navigator.mediaSession.setActionHandler('play', async () => {
+            const bgAudio = document.getElementById('bgAudio');
+            if (bgAudio) await bgAudio.play().catch(() => {});
+            if (ytPlayer && ytPlayer.playVideo) ytPlayer.playVideo();
+        });
+
+        navigator.mediaSession.setActionHandler('pause', () => {
+            if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
+            const bgAudio = document.getElementById('bgAudio');
+            if (bgAudio) bgAudio.pause();
+        });
+
+        navigator.mediaSession.setActionHandler('seekbackward', (details) => {
+            if (ytPlayer && ytPlayer.getCurrentTime) {
+                const skipTime = details.seekOffset || 10;
+                ytPlayer.seekTo(Math.max(ytPlayer.getCurrentTime() - skipTime, 0), true);
+            }
+        });
+
+        navigator.mediaSession.setActionHandler('seekforward', (details) => {
+            if (ytPlayer && ytPlayer.getCurrentTime) {
+                const skipTime = details.seekOffset || 10;
+                ytPlayer.seekTo(ytPlayer.getCurrentTime() + skipTime, true);
+            }
+        });
+    },
+
+    onPlayerStateChange(event) {
+        const bgAudio = document.getElementById('bgAudio');
+        // YT.PlayerState.PLAYING === 1
+        if (event.data === 1) {
+            if (bgAudio && bgAudio.paused) bgAudio.play().catch(() => {});
+            if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+        }
+        // YT.PlayerState.PAUSED === 2 || ENDED === 0
+        else if (event.data === 2 || event.data === 0) {
+            if (bgAudio) bgAudio.pause();
+            if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
         }
     },
 
-    // Add this new method right above closePlayer()
     showNowPlaying() {
         if (!this.currentVideoObj) return;
         this.setActiveMenu('nav-now-playing');
@@ -365,17 +436,19 @@ const UI = {
     },
 
     closePlayer() {
-        document.getElementById('videoPlayer').src = ''; 
+        if (ytPlayer && ytPlayer.stopVideo) ytPlayer.stopVideo();
+
+        const bgAudio = document.getElementById('bgAudio');
+        if (bgAudio) bgAudio.pause();
+
         this.playerView.classList.add('hidden');
         this.grid.classList.remove('hidden');
         this.title.classList.remove('hidden');
         this.currentVideoObj = null;
 
-        // Hide Now Playing menu item
         const nowPlayingMenu = document.getElementById('nav-now-playing-container');
         if (nowPlayingMenu) nowPlayingMenu.classList.add('hidden');
 
-        // Clear OS Media Session
         if ('mediaSession' in navigator) navigator.mediaSession.metadata = null;
     },
 
@@ -396,6 +469,23 @@ const UI = {
         }
     }
 };
+
+// --- VISIBILITY & BACKGROUND RESUMPTION HANDLER ---
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+        // Tab went to background or phone screen locked
+        const bgAudio = document.getElementById('bgAudio');
+        if (ytPlayer && typeof ytPlayer.getPlayerState === 'function') {
+            if (ytPlayer.getPlayerState() === YT.PlayerState.PLAYING) {
+                // Sustain background playback state
+                setTimeout(() => {
+                    if (bgAudio) bgAudio.play().catch(() => {});
+                    if (ytPlayer && ytPlayer.playVideo) ytPlayer.playVideo();
+                }, 150);
+            }
+        }
+    }
+});
 
 let searchTimeout;
 UI.searchInput.addEventListener('input', (e) => {
