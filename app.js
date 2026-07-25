@@ -218,7 +218,7 @@ const UI = {
     async loadHome() {
         this.setActiveMenu('nav-home');
         this.resetView('Recommended For You');
-        const videos = await YouTubeAPI.getTrending();
+        const videos = await YouTubeAPI.search('Recommended for you india');
         this.renderGrid(videos);
     },
     async loadTrending() {
