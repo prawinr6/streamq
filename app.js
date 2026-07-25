@@ -218,13 +218,13 @@ const UI = {
     async loadHome() {
         this.setActiveMenu('nav-home');
         this.resetView('Recommended For You');
-        const videos = await YouTubeAPI.search('Get trending today in Bengaluru ');
+        const videos = await YouTubeAPI.search('Get trending today in Bengaluru');
         this.renderGrid(videos);
     },
     async loadTrending() {
         this.setActiveMenu('nav-trending');
         this.resetView('Global Trending');
-        const videos = await YouTubeAPI.search('Get top 20 trending today in india ');
+        const videos = await YouTubeAPI.search('Get trending today in India');
         this.renderGrid(videos);
     },
     async loadExplore() {
