@@ -224,7 +224,7 @@ const UI = {
     async loadTrending() {
         this.setActiveMenu('nav-trending');
         this.resetView('Global Trending');
-        const videos = await YouTubeAPI.search('Trending viral 2026');
+        const videos = await YouTubeAPI.search('Trending viral today in india');
         this.renderGrid(videos);
     },
     async loadExplore() {
@@ -236,7 +236,7 @@ const UI = {
     async loadLive() {
         this.setActiveMenu('nav-live');
         this.resetView('<span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-red-500 animate-pulse"></span> Happening Now</span>');
-        const videos = await YouTubeAPI.search('live news sports gaming lo-fi', true);
+        const videos = await YouTubeAPI.search('Tamil news live', true);
         this.renderGrid(videos);
     },
     loadHistory() {
