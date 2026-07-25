@@ -217,20 +217,20 @@ const UI = {
 
     async loadHome() {
         this.setActiveMenu('nav-home');
-        this.resetView('Recommended For You');
-        const videos = await YouTubeAPI.search('Recommended for you india');
+        this.resetView('Recommended For You india');
+        const videos = await YouTubeAPI.getTrending()
         this.renderGrid(videos);
     },
     async loadTrending() {
         this.setActiveMenu('nav-trending');
-        this.resetView('Global Trending');
-        const videos = await YouTubeAPI.search('Top 10 trending today in india');
+        this.resetView('Top 20 trending today india');
+        const videos = await YouTubeAPI.getTrending()
         this.renderGrid(videos);
     },
     async loadExplore() {
         this.setActiveMenu('nav-explore');
         this.resetView('Explore Topics');
-        const videos = await YouTubeAPI.search('Documentary travel technology');
+        const videos = await YouTubeAPI.getTrending()
         this.renderGrid(videos);
     },
     async loadLive() {
