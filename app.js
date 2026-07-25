@@ -2,9 +2,9 @@ const CONFIG = {
     BASE_URL: 'https://www.googleapis.com/youtube/v3',
     STORAGE_KEY: 'streamq_yt_api_key',
     CACHE_EXPIRY: { 
-        TRENDING: 1000 * 60 * 60 * 3, 
-        SEARCH: 1000 * 60 * 60 * 24,
-        REGION: 1000 * 60 * 60 * 24 // 24 Hours
+        TRENDING: 1000 * 60 * 60 * 1, // 1 Hour (Synced with City IP Cycle)
+        SEARCH: 1000 * 60 * 60 * 1,   // 1 Hour
+        LOCATION: 1000 * 60 * 60 * 1  // 1 Hour IP Lookup
     }
 };
 
@@ -17,32 +17,50 @@ window.onYouTubeIframeAPIReady = function() {
     isYTAPIReady = true;
 };
 
-// --- GEOLOCATION SERVICE ---
+// --- GEOLOCATION SERVICE (CITY-BASED) ---
 const GeoService = {
-    async getUserRegion() {
-        const cacheKey = 'yt_user_region_info';
-        const cached = CacheManager.get(cacheKey);
-        if (cached) return cached;
+    async getUserLocation(forceRefresh = false) {
+        const cacheKey = 'yt_user_location_info';
+        
+        if (!forceRefresh) {
+            const cached = CacheManager.get(cacheKey);
+            if (cached) return cached;
+        }
         
         try {
-            // Free IP geolocation endpoint without API key limits
+            // Free IP geolocation endpoint returning city details
             const res = await fetch('https://ipapi.co/json/');
             const data = await res.json();
             
-            const regionInfo = {
+            const locationInfo = {
+                city: data.city || 'Bengaluru',
                 code: data.country_code || 'IN', 
                 name: data.country_name || 'India'
             };
             
-            // Cache the location for 24 hours to save external API bandwidth
-            CacheManager.set(cacheKey, regionInfo, CONFIG.CACHE_EXPIRY.REGION);
-            return regionInfo;
+            // Cache location for 1 hour to optimize network calls
+            CacheManager.set(cacheKey, locationInfo, CONFIG.CACHE_EXPIRY.LOCATION);
+            return locationInfo;
         } catch (error) {
-            console.error('Failed to fetch location. Defaulting to India.', error);
-            const defaultRegion = { code: 'IN', name: 'India' };
-            CacheManager.set(cacheKey, defaultRegion, CONFIG.CACHE_EXPIRY.REGION);
-            return defaultRegion;
+            console.error('Failed to fetch location. Defaulting to fallback location.', error);
+            const defaultLocation = { city: 'Bengaluru', code: 'IN', name: 'India' };
+            CacheManager.set(cacheKey, defaultLocation, CONFIG.CACHE_EXPIRY.LOCATION);
+            return defaultLocation;
         }
+    },
+
+    // Hourly background check interval for IP lookup & Feed auto-refresh
+    startHourlyIPCheck() {
+        setInterval(async () => {
+            const oldLocation = CacheManager.get('yt_user_location_info');
+            const newLocation = await this.getUserLocation(true); // Force fresh IP lookup
+            
+            // If city changed or IP cache expired, refresh the active UI feed automatically
+            if (!oldLocation || oldLocation.city !== newLocation.city) {
+                console.log(`IP Location updated to: ${newLocation.city}. Auto-refreshing feeds...`);
+                UI.refreshCurrentFeed();
+            }
+        }, 1000 * 60 * 60); // Runs every 1 hour
     }
 };
 
@@ -148,6 +166,7 @@ const YouTubeAPI = {
         return data;
     },
 
+    // Single-batch API enrichment call (Saves API Quota)
     async enrichVideoDetails(items) {
         if (!items || items.length === 0) return [];
         const videoIds = items.map(item => typeof item.id === 'object' ? item.id.videoId : item.id).filter(Boolean);
@@ -173,26 +192,9 @@ const YouTubeAPI = {
         return items;
     },
 
-    async getTrending(regionCode = 'IN') {
-        const cacheKey = `yt_trending_${regionCode}_v2`;
-        const cached = CacheManager.get(cacheKey);
-        if (cached) return cached;
-        
-        try {
-            // Native YouTube parameter 'regionCode' optimizes localization
-            const data = await this.fetchWithKey(`/videos?part=snippet,statistics,status&chart=mostPopular&regionCode=${regionCode}&maxResults=24`);
-            if (data && data.items) {
-                CacheManager.set(cacheKey, data.items, CONFIG.CACHE_EXPIRY.TRENDING);
-                return data.items;
-            }
-            return [];
-        } catch (error) { return []; }
-    },
-
     async search(query, isLive = false, regionCode = 'IN') {
         if (!query) return [];
-        // Append regionCode to cacheKey to avoid serving incorrect regional data
-        const cacheKey = `yt_search_${query.replace(/\s+/g, '').toLowerCase()}_${isLive}_${regionCode}_enriched`;
+        const cacheKey = `yt_search_${query.replace(/\s+/g, '').toLowerCase()}_${isLive}_${regionCode}_v3`;
         const cached = CacheManager.get(cacheKey);
         if (cached) return cached;
 
@@ -219,6 +221,7 @@ const UI = {
     searchInput: document.getElementById('searchInput'),
     title: document.getElementById('pageTitle'),
     currentVideoObj: null,
+    currentActiveFeed: 'home', // Track current active section for feed refreshes
 
     modal: document.getElementById('apiKeyModal'),
     modalMsg: document.getElementById('modalMessage'),
@@ -251,50 +254,81 @@ const UI = {
         }
     },
 
+    // Refresh active feed (called during hourly location checks)
+    refreshCurrentFeed() {
+        switch (this.currentActiveFeed) {
+            case 'home': this.loadHome(); break;
+            case 'trending': this.loadTrending(); break;
+            case 'explore': this.loadExplore(); break;
+            case 'live': this.loadLive(); break;
+            default: break;
+        }
+    },
+
+    // CITY-BASED HOME SECTION
     async loadHome() {
+        this.currentActiveFeed = 'home';
         this.setActiveMenu('nav-home');
-        const region = await GeoService.getUserRegion();
-        this.resetView(`Recommended For You <span class="text-sm font-normal text-gray-500 ml-2">(${region.name})</span>`);
-        const videos = await YouTubeAPI.getTrending(region.code);
+        const loc = await GeoService.getUserLocation();
+        this.resetView(`Recommended For You <span class="text-sm font-normal text-gray-500 ml-2">(${loc.city}, ${loc.name})</span>`);
+        
+        // Custom search query targeting user's specific city
+        const videos = await YouTubeAPI.search(`${loc.city} top trending videos`, false, loc.code);
         this.renderGrid(videos);
     },
+
+    // CITY-BASED TRENDING SECTION
     async loadTrending() {
+        this.currentActiveFeed = 'trending';
         this.setActiveMenu('nav-trending');
-        const region = await GeoService.getUserRegion();
-        this.resetView(`Trending in ${region.name}`);
-        const videos = await YouTubeAPI.search(`Trending today in ${region.name}`, false, region.code);
+        const loc = await GeoService.getUserLocation();
+        this.resetView(`Trending in ${loc.city}`);
+        
+        const videos = await YouTubeAPI.search(`Trending today in ${loc.city}`, false, loc.code);
         this.renderGrid(videos);
     },
+
+    // CITY-BASED EXPLORE SECTION
     async loadExplore() {
+        this.currentActiveFeed = 'explore';
         this.setActiveMenu('nav-explore');
-        const region = await GeoService.getUserRegion();
-        this.resetView(`Explore ${region.name}`);
-        const videos = await YouTubeAPI.search(`Documentary travel technology ${region.name}`, false, region.code);
+        const loc = await GeoService.getUserLocation();
+        this.resetView(`Explore ${loc.city}`);
+        
+        const videos = await YouTubeAPI.search(`Explore ${loc.city} travel culture news technology`, false, loc.code);
         this.renderGrid(videos);
     },
+
+    // CITY-BASED LIVE SECTION
     async loadLive() {
+        this.currentActiveFeed = 'live';
         this.setActiveMenu('nav-live');
-        const region = await GeoService.getUserRegion();
-        this.resetView(`<span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-red-500 animate-pulse"></span> Happening Now in ${region.name}</span>`);
-        const videos = await YouTubeAPI.search(`${region.name} news live`, true, region.code);
+        const loc = await GeoService.getUserLocation();
+        this.resetView(`<span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-red-500 animate-pulse"></span> Happening Now in ${loc.city}</span>`);
+        
+        const videos = await YouTubeAPI.search(`${loc.city} news live`, true, loc.code);
         this.renderGrid(videos);
     },
+
     loadHistory() {
+        this.currentActiveFeed = 'history';
         this.setActiveMenu('nav-history');
         this.resetView('Watch History');
         this.renderGrid(LibraryManager.getHistory(), true);
     },
     loadSaved() {
+        this.currentActiveFeed = 'saved';
         this.setActiveMenu('nav-saved');
         this.resetView('Saved to Library');
         this.renderGrid(LibraryManager.getSaved(), true);
     },
     async handleSearch(query) {
+        this.currentActiveFeed = 'search';
         this.setActiveMenu('');
         this.resetView(`Search Results for "${query}"`);
         const isLiveQuery = query.toLowerCase().includes('live');
-        const region = await GeoService.getUserRegion();
-        const videos = await YouTubeAPI.search(query, isLiveQuery, region.code);
+        const loc = await GeoService.getUserLocation();
+        const videos = await YouTubeAPI.search(query, isLiveQuery, loc.code);
         this.renderGrid(videos);
     },
 
@@ -350,9 +384,7 @@ const UI = {
         });
     },
 
-    // --- BACKGROUND AUDIO ENABLER & PRIVACY PLAYER INIT ---
     openPlayer(videoObj) {
-        // Step 1: Start playing silent audio immediately inside user tap gesture context
         const bgAudio = document.getElementById('bgAudio');
         if (bgAudio) {
             bgAudio.play().catch(e => console.log('Silent audio playback start:', e));
@@ -376,12 +408,11 @@ const UI = {
 
         const currentOrigin = (window.location.hostname === '' || window.location.hostname === 'localhost') ? 'https://localhost' : window.location.origin;
 
-        // Step 2: Initialize YouTube IFrame API Player with youtube-nocookie.com & disabled ad overlays
         if (ytPlayer) {
             ytPlayer.loadVideoById(videoId);
         } else {
             ytPlayer = new YT.Player('videoPlayer', {
-                host: 'https://www.youtube-nocookie.com', // Blocks tracking cookies & ad-profiling
+                host: 'https://www.youtube-nocookie.com',
                 videoId: videoId,
                 playerVars: {
                     'autoplay': 1,
@@ -389,7 +420,7 @@ const UI = {
                     'enablejsapi': 1,
                     'rel': 0,
                     'modestbranding': 1,
-                    'iv_load_policy': 3, // Disables interactive ad cards and video overlays
+                    'iv_load_policy': 3,
                     'origin': currentOrigin
                 },
                 events: {
@@ -398,7 +429,6 @@ const UI = {
             });
         }
 
-        // Metadata Updates in Player View
         document.getElementById('videoTitle').textContent = snippet.title || 'Untitled';
         document.getElementById('videoChannel').textContent = snippet.channelTitle || 'Unknown Channel';
         document.getElementById('videoViews').textContent = Formatters.views(stats.viewCount);
@@ -407,7 +437,6 @@ const UI = {
 
         document.getElementById('contentArea').scrollTo({ top: 0, behavior: 'smooth' });
 
-        // Step 3: Register Media Session metadata & OS Action Handlers
         this.setupMediaSession(snippet);
     },
 
@@ -426,7 +455,6 @@ const UI = {
             ]
         });
 
-        // Lock Screen Play/Pause Action Handlers
         navigator.mediaSession.setActionHandler('play', async () => {
             const bgAudio = document.getElementById('bgAudio');
             if (bgAudio) await bgAudio.play().catch(() => {});
@@ -456,13 +484,10 @@ const UI = {
 
     onPlayerStateChange(event) {
         const bgAudio = document.getElementById('bgAudio');
-        // YT.PlayerState.PLAYING === 1
         if (event.data === 1) {
             if (bgAudio && bgAudio.paused) bgAudio.play().catch(() => {});
             if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
-        }
-        // YT.PlayerState.PAUSED === 2 || ENDED === 0
-        else if (event.data === 2 || event.data === 0) {
+        } else if (event.data === 2 || event.data === 0) {
             if (bgAudio) bgAudio.pause();
             if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
         }
@@ -476,13 +501,11 @@ const UI = {
         this.playerView.classList.remove('hidden');
     },
 
-    // Add this new function to handle minimizing without stopping playback
     minimisePlayer() {
         this.playerView.classList.add('hidden');
         this.grid.classList.remove('hidden');
         this.title.classList.remove('hidden');
         
-        // Ensure "Now Playing" menu is visible so the user can easily return
         const nowPlayingMenu = document.getElementById('nav-now-playing-container');
         if (nowPlayingMenu) nowPlayingMenu.classList.remove('hidden');
     },
@@ -522,14 +545,12 @@ const UI = {
     }
 };
 
-// --- VISIBILITY & BACKGROUND RESUMPTION HANDLER ---
+// --- VISIBILITY & BACKGROUND RESUMPTION ---
 document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
-        // Tab went to background or phone screen locked
         const bgAudio = document.getElementById('bgAudio');
         if (ytPlayer && typeof ytPlayer.getPlayerState === 'function') {
             if (ytPlayer.getPlayerState() === YT.PlayerState.PLAYING) {
-                // Sustain background playback state
                 setTimeout(() => {
                     if (bgAudio) bgAudio.play().catch(() => {});
                     if (ytPlayer && ytPlayer.playVideo) ytPlayer.playVideo();
@@ -541,23 +562,20 @@ document.addEventListener('visibilitychange', () => {
 
 // --- FULLSCREEN ORIENTATION HANDLER ---
 const handleFullscreenChange = async () => {
-    // Check if any element is currently in fullscreen mode
     const isFullscreen = document.fullscreenElement || 
                          document.webkitFullscreenElement || 
                          document.mozFullScreenElement || 
                          document.msFullscreenElement;
 
     if (isFullscreen) {
-        // Lock screen to landscape when entering fullscreen
         if (screen.orientation && screen.orientation.lock) {
             try {
                 await screen.orientation.lock('landscape');
             } catch (error) {
-                console.warn('Orientation lock failed or is not supported by this device:', error);
+                console.warn('Orientation lock unsupported:', error);
             }
         }
     } else {
-        // Unlock screen orientation when exiting fullscreen
         if (screen.orientation && screen.orientation.unlock) {
             try {
                 screen.orientation.unlock();
@@ -568,11 +586,10 @@ const handleFullscreenChange = async () => {
     }
 };
 
-// Listen for standard and vendor-prefixed fullscreen events
 document.addEventListener('fullscreenchange', handleFullscreenChange);
-document.addEventListener('webkitfullscreenchange', handleFullscreenChange); // Safari/Older iOS
-document.addEventListener('mozfullscreenchange', handleFullscreenChange);    // Firefox
-document.addEventListener('MSFullscreenChange', handleFullscreenChange);     // IE/Edge
+document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+document.addEventListener('MSFullscreenChange', handleFullscreenChange);
 
 let searchTimeout;
 UI.searchInput.addEventListener('input', (e) => {
@@ -584,8 +601,13 @@ UI.searchInput.addEventListener('input', (e) => {
     }, 800);
 });
 
+// INITIALIZATION
 document.addEventListener('DOMContentLoaded', () => {
     UI.updateStatusBadge();
+    
+    // Start hourly IP check interval
+    GeoService.startHourlyIPCheck();
+
     if (!KeyManager.getKey()) UI.openModal();
     else UI.loadHome();
 });
