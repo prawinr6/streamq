@@ -224,7 +224,7 @@ const UI = {
     async loadTrending() {
         this.setActiveMenu('nav-trending');
         this.resetView('Global Trending');
-        const videos = await YouTubeAPI.search('Trending viral today in india');
+        const videos = await YouTubeAPI.search('Top 10 trending today in india');
         this.renderGrid(videos);
     },
     async loadExplore() {
