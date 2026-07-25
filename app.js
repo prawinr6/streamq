@@ -359,20 +359,14 @@ const UI = {
     }
 };
 
-UI.searchInput.addEventListener('keydown', (e) => {
-    // Check if the pressed key is 'Enter'
-    if (e.key === 'Enter') {
-        // Prevent default form submission behavior if wrapped in a form
-        e.preventDefault(); 
-        
-        const query = e.target.value.trim();
-        
-        if (query.length > 2) {
-            UI.handleSearch(query);
-        } else if (query.length === 0) {
-            UI.loadHome();
-        }
-    }
+let searchTimeout;
+UI.searchInput.addEventListener('input', (e) => {
+    clearTimeout(searchTimeout);
+    const query = e.target.value.trim();
+    searchTimeout = setTimeout(() => {
+        if (query.length > 2) UI.handleSearch(query);
+        else if (query.length === 0) UI.loadHome();
+    }, 2000);
 });
 
 document.addEventListener('DOMContentLoaded', () => {
