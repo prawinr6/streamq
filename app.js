@@ -435,6 +435,17 @@ const UI = {
         this.playerView.classList.remove('hidden');
     },
 
+    // Add this new function to handle minimizing without stopping playback
+    minimisePlayer() {
+        this.playerView.classList.add('hidden');
+        this.grid.classList.remove('hidden');
+        this.title.classList.remove('hidden');
+        
+        // Ensure "Now Playing" menu is visible so the user can easily return
+        const nowPlayingMenu = document.getElementById('nav-now-playing-container');
+        if (nowPlayingMenu) nowPlayingMenu.classList.remove('hidden');
+    },
+
     closePlayer() {
         if (ytPlayer && ytPlayer.stopVideo) ytPlayer.stopVideo();
 
