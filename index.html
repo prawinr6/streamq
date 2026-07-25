@@ -34,6 +34,12 @@
                     <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
                 </a>
             </li>
+            <!-- NEW NOW PLAYING SECTION (Hidden by default) -->
+            <li id="nav-now-playing-container" class="hidden">
+                <a href="#" onclick="UI.showNowPlaying()" id="nav-now-playing" class="nav-link flex items-center px-4 py-3 hover:bg-gray-800 rounded-lg text-gray-400 hover:text-white transition-colors">
+                    <i class="fa-solid fa-circle-play w-6 text-red-500 animate-pulse"></i> Now Playing
+                </a>
+            </li>
                 
             <li class="pt-4 pb-2 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Library</li>
             <li><a href="#" onclick="UI.loadHistory()" id="nav-history" class="nav-link flex items-center px-4 py-3 hover:bg-gray-800 rounded-lg text-gray-400 hover:text-white transition-colors"><i class="fa-solid fa-clock-rotate-left w-6"></i> History</a></li>
