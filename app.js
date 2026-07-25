@@ -498,6 +498,41 @@ document.addEventListener('visibilitychange', () => {
     }
 });
 
+// --- FULLSCREEN ORIENTATION HANDLER ---
+const handleFullscreenChange = async () => {
+    // Check if any element is currently in fullscreen mode
+    const isFullscreen = document.fullscreenElement || 
+                         document.webkitFullscreenElement || 
+                         document.mozFullScreenElement || 
+                         document.msFullscreenElement;
+
+    if (isFullscreen) {
+        // Lock screen to landscape when entering fullscreen
+        if (screen.orientation && screen.orientation.lock) {
+            try {
+                await screen.orientation.lock('landscape');
+            } catch (error) {
+                console.warn('Orientation lock failed or is not supported by this device:', error);
+            }
+        }
+    } else {
+        // Unlock screen orientation when exiting fullscreen
+        if (screen.orientation && screen.orientation.unlock) {
+            try {
+                screen.orientation.unlock();
+            } catch (error) {
+                console.warn('Orientation unlock failed:', error);
+            }
+        }
+    }
+};
+
+// Listen for standard and vendor-prefixed fullscreen events
+document.addEventListener('fullscreenchange', handleFullscreenChange);
+document.addEventListener('webkitfullscreenchange', handleFullscreenChange); // Safari/Older iOS
+document.addEventListener('mozfullscreenchange', handleFullscreenChange);    // Firefox
+document.addEventListener('MSFullscreenChange', handleFullscreenChange);     // IE/Edge
+
 let searchTimeout;
 UI.searchInput.addEventListener('input', (e) => {
     clearTimeout(searchTimeout);
