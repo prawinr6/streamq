@@ -288,6 +288,14 @@ const UI = {
         this.renderGrid(videos);
     },
 
+    async loadMusic() {
+        this.currentActiveFeed = 'music';
+        this.setActiveMenu('nav-music');
+        this.resetView(`Trending Music`);
+        const videos = await YouTubeAPI.search('Trending tamil music video songs');
+        this.renderGrid(videos);
+    },
+
     // CITY-BASED EXPLORE SECTION
     async loadExplore() {
         this.currentActiveFeed = 'explore';
