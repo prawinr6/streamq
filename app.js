@@ -307,14 +307,12 @@ const UI = {
         this.renderGrid(videos);
     },
 
-    // CITY-BASED LIVE SECTION
-    async loadLive() {
-        this.currentActiveFeed = 'live';
-        this.setActiveMenu('nav-live');
-        const loc = await GeoService.getUserLocation();
-        this.resetView(`<span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-red-500 animate-pulse"></span> Happening Now in ${loc.city}</span>`);
+    async loadNewslive() {
+        this.currentActiveFeed = 'newslive';
+        this.setActiveMenu('nav-newslive');
+        this.resetView(`<span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-red-500 animate-pulse"></span> Latest news </span>`);
         
-        const videos = await YouTubeAPI.search(`${loc.city} news live`, true, loc.code);
+        const videos = await YouTubeAPI.search(`Tamil news live`);
         this.renderGrid(videos);
     },
 
