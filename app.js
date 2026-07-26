@@ -312,7 +312,7 @@ const UI = {
         this.setActiveMenu('nav-newslive');
         this.resetView(`<span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-red-500 animate-pulse"></span> Latest news </span>`);
         
-        const videos = await YouTubeAPI.search(`Latest tamil news live`);
+        const videos = await YouTubeAPI.search(`Tamil news live`);
         this.renderGrid(videos);
     },
 
