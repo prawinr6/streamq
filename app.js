@@ -156,7 +156,7 @@ const LibraryManager = {
 const YouTubeAPI = {
     async fetchWithKey(endpoint) {
         const apiKey = KeyManager.getKey();
-        if (!apiKey) { UI.promptForKey('No API Key found.'); return null; }
+        if (!apiKey) { UI.promptForKey('No authorization key found.'); return null; }
         const res = await fetch(`${CONFIG.BASE_URL}${endpoint}&key=${apiKey}`);
         const data = await res.json();
         if (!res.ok) {
@@ -312,7 +312,7 @@ const UI = {
         this.setActiveMenu('nav-newslive');
         this.resetView(`<span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-red-500 animate-pulse"></span> Latest news </span>`);
         
-        const videos = await YouTubeAPI.search(`Tamil news live`);
+        const videos = await YouTubeAPI.search(`Latest tamil news live`);
         this.renderGrid(videos);
     },
 
