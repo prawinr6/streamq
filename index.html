@@ -171,14 +171,14 @@
                 </div>
                 <button onclick="UI.closeModal()" class="text-gray-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
             </div>
-            <p class="text-xs text-gray-400 mb-4">Please enter your YouTube Authorization Key here</p>
+            <p class="text-xs text-gray-400 mb-4">Please enter your YouTube Authorization Token here</p>
             <div class="space-y-4">
                 <div>
                     <input type="password" id="apiKeyInput" placeholder="AIzaSy..." class="w-full bg-[#0f0f11] border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-red-500 transition">
                 </div>
                 <div id="modalMessage" class="hidden text-xs py-2 px-3 rounded-lg"></div>
                 <div class="flex gap-2 pt-2">
-                    <button onclick="KeyManager.saveKeyFromUI()" class="flex-1 bg-red-600 hover:bg-red-500 text-white text-sm font-semibold py-2.5 rounded-lg transition">Save Key</button>
+                    <button onclick="KeyManager.saveKeyFromUI()" class="flex-1 bg-red-600 hover:bg-red-500 text-white text-sm font-semibold py-2.5 rounded-lg transition">Save Token</button>
                     <button onclick="KeyManager.clearKey()" class="bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm font-semibold px-4 py-2.5 rounded-lg transition">Clear</button>
                 </div>
             </div>
