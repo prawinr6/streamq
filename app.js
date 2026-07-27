@@ -156,7 +156,7 @@ const LibraryManager = {
 const YouTubeAPI = {
     async fetchWithKey(endpoint) {
         const apiKey = KeyManager.getKey();
-        if (!apiKey) { UI.promptForKey('No authorization key found.'); return null; }
+        if (!apiKey) { UI.promptForKey('No authorization token found.'); return null; }
         const res = await fetch(`${CONFIG.BASE_URL}${endpoint}&key=${apiKey}`);
         const data = await res.json();
         if (!res.ok) {
@@ -292,7 +292,7 @@ const UI = {
         this.currentActiveFeed = 'music';
         this.setActiveMenu('nav-music');
         this.resetView(`Trending Music`);
-        const videos = await YouTubeAPI.search('Trending tamil music video songs');
+        const videos = await YouTubeAPI.search('Trending tamil music video songs this week');
         this.renderGrid(videos);
     },
 
@@ -312,7 +312,7 @@ const UI = {
         this.setActiveMenu('nav-newslive');
         this.resetView(`<span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-red-500 animate-pulse"></span> Latest news </span>`);
         
-        const videos = await YouTubeAPI.search(`Tamil news live`);
+        const videos = await YouTubeAPI.search(`Latest tamil news live today`);
         this.renderGrid(videos);
     },
 
